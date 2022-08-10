@@ -14,33 +14,31 @@ from collections import Counter
 from urllib.request import urlretrieve
 
 sys.path.append("../latent-diffusion")
-sys.path.append('../taming-transformers')
+sys.path.append("../taming-transformers")
 
-os.environ['TOKENIZERS_PARALLELISM'] = 'false'
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 import autokeras as ak
 import cv2
-import open_clip
 import numpy as np
+import open_clip
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from PIL import Image
 from einops import rearrange
+from hivemind.moe.server.layers.custom_experts import register_expert_class
+from hivemind.utils.logging import get_logger
 from ldm.models.diffusion.ddim import DDIMSampler
 from ldm.models.diffusion.plms import PLMSSampler
 from ldm.util import instantiate_from_config
-from hivemind.moe.server.layers.custom_experts import register_expert_class
-from hivemind.utils.logging import get_logger
-from ldm.util import instantiate_from_config
 from omegaconf import OmegaConf
+from PIL import Image
 from tensorflow.keras.models import load_model
-
 
 logger = get_logger(__name__)
 
 
-MODEL_PATH = os.path.join(os.path.dirname(__file__), '../model')
+MODEL_PATH = os.path.join(os.path.dirname(__file__), "../model")
 
 MAX_PROMPT_LENGTH = 512
 CHANNELS = 3
@@ -70,9 +68,7 @@ def load_safety_model(clip_model):
         if clip_model == "ViT-L/14":
             url_model = "https://raw.githubusercontent.com/LAION-AI/CLIP-based-NSFW-Detector/main/clip_autokeras_binary_nsfw.zip"
         elif clip_model == "ViT-B/32":
-            url_model = (
-                "https://raw.githubusercontent.com/LAION-AI/CLIP-based-NSFW-Detector/main/clip_autokeras_nsfw_b32.zip"
-            )
+            url_model = "https://raw.githubusercontent.com/LAION-AI/CLIP-based-NSFW-Detector/main/clip_autokeras_nsfw_b32.zip"
         else:
             raise ValueError("Unknown model {}".format(clip_model))
         urlretrieve(url_model, path_to_zip_file)
@@ -81,7 +77,9 @@ def load_safety_model(clip_model):
             zip_ref.extractall(cache_folder)
 
     loaded_model = load_model(model_dir, custom_objects=ak.CUSTOM_OBJECTS)
-    loaded_model.predict(np.random.rand(10 ** 3, dim).astype("float32"), batch_size=10 ** 3, verbose=0)
+    loaded_model.predict(
+        np.random.rand(10**3, dim).astype("float32"), batch_size=10**3, verbose=0
+    )
 
     return loaded_model
 
@@ -111,8 +109,16 @@ def load_model_from_config(config, ckpt, verbose=False):
 
 def make_nsfw_placeholder(height, width):
     placeholder = np.full((height, width, 3), 255, dtype=np.uint8)
-    cv2.putText(placeholder, 'NSFW detected', org=(10, height // 2), fontFace=cv2.FONT_HERSHEY_SIMPLEX,
-                fontScale=1, color=(255, 0, 0), thickness=2, lineType=cv2.LINE_AA)
+    cv2.putText(
+        placeholder,
+        "NSFW detected",
+        org=(10, height // 2),
+        fontFace=cv2.FONT_HERSHEY_SIMPLEX,
+        fontScale=1,
+        color=(255, 0, 0),
+        thickness=2,
+        lineType=cv2.LINE_AA,
+    )
     return placeholder
 
 
@@ -125,7 +131,9 @@ def run(model, clip_model, preprocess, safety_model, opt):
     else:
         sampler = DDIMSampler(model)
 
-    decoded_prompts = [bytes(tensor).rstrip(b'\0').decode(errors='ignore') for tensor in opt.prompts]
+    decoded_prompts = [
+        bytes(tensor).rstrip(b"\0").decode(errors="ignore") for tensor in opt.prompts
+    ]
     logger.info(f"Running inference, prompts: {Counter(decoded_prompts).most_common()}")
 
     all_samples = []
@@ -138,22 +146,30 @@ def run(model, clip_model, preprocess, safety_model, opt):
                     uc = model.get_learned_conditioning(opt.n_samples * [""])
                 for _ in range(opt.n_iter):
                     c = model.get_learned_conditioning(decoded_prompts)
-                    shape = [4, opt.H//8, opt.W//8]
-                    samples_ddim, _ = sampler.sample(S=opt.ddim_steps,
-                                                    conditioning=c,
-                                                    batch_size=opt.n_samples,
-                                                    shape=shape,
-                                                    verbose=False,
-                                                    unconditional_guidance_scale=opt.scale,
-                                                    unconditional_conditioning=uc,
-                                                    eta=opt.ddim_eta)
+                    shape = [4, opt.H // 8, opt.W // 8]
+                    samples_ddim, _ = sampler.sample(
+                        S=opt.ddim_steps,
+                        conditioning=c,
+                        batch_size=opt.n_samples,
+                        shape=shape,
+                        verbose=False,
+                        unconditional_guidance_scale=opt.scale,
+                        unconditional_conditioning=uc,
+                        eta=opt.ddim_eta,
+                    )
 
                     x_samples_ddim = model.decode_first_stage(samples_ddim)
-                    x_samples_ddim = torch.clamp((x_samples_ddim+1.0)/2.0, min=0.0, max=1.0)
+                    x_samples_ddim = torch.clamp(
+                        (x_samples_ddim + 1.0) / 2.0, min=0.0, max=1.0
+                    )
 
                     clip_inputs = []
                     for x_sample in x_samples_ddim:
-                        x_sample = (255. * rearrange(x_sample, 'c h w -> h w c')).to(torch.uint8).cpu()
+                        x_sample = (
+                            (255.0 * rearrange(x_sample, "c h w -> h w c"))
+                            .to(torch.uint8)
+                            .cpu()
+                        )
                         all_samples.append(x_sample)
 
                         image_vector = Image.fromarray(x_sample.numpy())
@@ -165,7 +181,9 @@ def run(model, clip_model, preprocess, safety_model, opt):
                     image_features /= image_features.norm(dim=-1, keepdim=True)
 
                     query = image_features.to(torch.float32).numpy()
-                    scores = safety_model.predict(query, batch_size=query.shape[0], verbose=0)
+                    scores = safety_model.predict(
+                        query, batch_size=query.shape[0], verbose=0
+                    )
 
                     scores = torch.tensor(scores[:, 0])
                     nsfw_scores.append(scores)
@@ -174,7 +192,9 @@ def run(model, clip_model, preprocess, safety_model, opt):
         nsfw_samples = nsfw_scores >= NSFW_THRESHOLD
         if nsfw_samples.any():
             logger.warning(f"{nsfw_samples.sum()} NSFW outputs detected")
-            all_samples[nsfw_samples] = torch.tensor(make_nsfw_placeholder(opt.H, opt.W))
+            all_samples[nsfw_samples] = torch.tensor(
+                make_nsfw_placeholder(opt.H, opt.W)
+            )
         return all_samples, nsfw_scores
 
 
@@ -190,14 +210,23 @@ class DiffusionModule(nn.Module):
 
         clip_type = "ViT-L/14"
         self._safety_model = load_safety_model(clip_type)
-        self._clip_model, _, self._clip_preprocess = open_clip.create_model_and_transforms(
-            clip_type, pretrained='openai', device='cpu')
-        logger.info('Loaded safety model and CLIP')
+        (
+            self._clip_model,
+            _,
+            self._clip_preprocess,
+        ) = open_clip.create_model_and_transforms(
+            clip_type, pretrained="openai", device="cpu"
+        )
+        logger.info("Loaded safety model and CLIP")
 
-        config = OmegaConf.load("../latent-diffusion/configs/latent-diffusion/txt2img-1p4B-eval.yaml")
-        self._model = load_model_from_config(config, f"{MODEL_PATH}/latent_diffusion_txt2img_f8_large.ckpt")
+        config = OmegaConf.load(
+            "../latent-diffusion/configs/latent-diffusion/txt2img-1p4B-eval.yaml"
+        )
+        self._model = load_model_from_config(
+            config, f"{MODEL_PATH}/latent_diffusion_txt2img_f8_large.ckpt"
+        )
         self._model = self._model.cuda()
-        logger.info('Loaded diffusion model')
+        logger.info("Loaded diffusion model")
 
     def forward(self, prompts: torch.ByteTensor):
         args = argparse.Namespace(
@@ -210,19 +239,31 @@ class DiffusionModule(nn.Module):
             n_samples=prompts.shape[0],
             scale=5.0,
             plms=True,
-            nsfw_threshold=0.5
+            nsfw_threshold=0.5,
         )
-        output_images, nsfw_scores = run(self._model, self._clip_model, self._clip_preprocess, self._safety_model, args)
+        output_images, nsfw_scores = run(
+            self._model,
+            self._clip_model,
+            self._clip_preprocess,
+            self._safety_model,
+            args,
+        )
 
         encoded_images = []
         for image in output_images.numpy():
             image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)  # imencode() operates in BGR
-            retval, buf = cv2.imencode('.webp', image, [cv2.IMWRITE_WEBP_QUALITY, WEBP_QUALITY])
+            retval, buf = cv2.imencode(
+                ".webp", image, [cv2.IMWRITE_WEBP_QUALITY, WEBP_QUALITY]
+            )
             assert retval
             encoded_images.append(torch.tensor(buf, dtype=torch.uint8))
 
         max_buf_len = max(len(buf) for buf in encoded_images)
-        encoded_images = torch.stack([F.pad(buf, (0, max_buf_len - len(buf))) for buf in encoded_images])
+        encoded_images = torch.stack(
+            [F.pad(buf, (0, max_buf_len - len(buf))) for buf in encoded_images]
+        )
 
-        assert encoded_images.dtype == torch.uint8  # note: output dtype is important since it affects bandwidth usage!
+        assert (
+            encoded_images.dtype == torch.uint8
+        )  # note: output dtype is important since it affects bandwidth usage!
         return encoded_images, nsfw_scores

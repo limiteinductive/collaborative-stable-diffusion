@@ -1,0 +1,17 @@
+[tool.poetry]
+name = "csd"
+version = "0.1.0"
+description = ""
+authors = [ "Ben <benjamin@selas.studio>"]
+readme = "README.md"
+dependencies = {python = "^3.9", black = "^22.6.0", isort = "^5.10.1", torch = { version ="=1.12.0+cu113", source = "pytorch" }, hivemind = "^1.1.0"}
+
+
+[[tool.poetry.source]]
+name = "pytorch"
+url = "https://download.pytorch.org/whl/cu113/"
+secondary = true
+
+[build-system]
+requires = [ "relaxed-poetry-core>=0.1.2"]
+build-backend = "poetry.core.masonry.api"
