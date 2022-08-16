@@ -42,7 +42,7 @@ MODEL_PATH = os.path.join(os.path.dirname(__file__), "../model")
 
 MAX_PROMPT_LENGTH = 512
 CHANNELS = 3
-HEIGHT = WIDTH = 256
+HEIGHT = WIDTH = 512
 
 WEBP_QUALITY = 60
 NSFW_THRESHOLD = 0.9
@@ -220,10 +220,10 @@ class DiffusionModule(nn.Module):
         logger.info("Loaded safety model and CLIP")
 
         config = OmegaConf.load(
-            "../latent-diffusion/configs/latent-diffusion/txt2img-1p4B-eval.yaml"
+            "/home/patron/stable-diffusion/configs/stable-diffusion/v1-inference.yaml"
         )
         self._model = load_model_from_config(
-            config, f"{MODEL_PATH}/latent_diffusion_txt2img_f8_large.ckpt"
+            config, f"/home/patron/sd-v1-3-full-ema.ckpt"
         )
         self._model = self._model.cuda()
         logger.info("Loaded diffusion model")
@@ -237,7 +237,7 @@ class DiffusionModule(nn.Module):
             W=WIDTH,
             H=HEIGHT,
             n_samples=prompts.shape[0],
-            scale=5.0,
+            scale=7.5,
             plms=True,
             nsfw_threshold=0.5,
         )
@@ -259,8 +259,12 @@ class DiffusionModule(nn.Module):
             encoded_images.append(torch.tensor(buf, dtype=torch.uint8))
 
         max_buf_len = max(len(buf) for buf in encoded_images)
+        print("max_buf_len", max_buf_len)
+        for buf in encoded_images:
+            print("buf size", buf.size())
+        
         encoded_images = torch.stack(
-            [F.pad(buf, (0, max_buf_len - len(buf))) for buf in encoded_images]
+            [F.pad(buf, (0, 0, 0, max_buf_len - len(buf))) for buf in encoded_images]
         )
 
         assert (
