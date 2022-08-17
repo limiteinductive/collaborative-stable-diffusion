@@ -13,8 +13,8 @@ import zipfile
 from collections import Counter
 from urllib.request import urlretrieve
 
-sys.path.append("../latent-diffusion")
-sys.path.append("../taming-transformers")
+from tsd import run_stable_diffusion
+
 
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
@@ -28,10 +28,8 @@ import torch.nn.functional as F
 from einops import rearrange
 from hivemind.moe.server.layers.custom_experts import register_expert_class
 from hivemind.utils.logging import get_logger
-from ldm.models.diffusion.ddim import DDIMSampler
-from ldm.models.diffusion.plms import PLMSSampler
-from ldm.util import instantiate_from_config
-from omegaconf import OmegaConf
+
+#from omegaconf import OmegaConf
 from PIL import Image
 from tensorflow.keras.models import load_model
 
@@ -93,7 +91,7 @@ def is_unsafe(safety_model, embeddings, threshold=0.5):
 
 def load_model_from_config(config, ckpt, verbose=False):
     logger.info(f"Loading model from {ckpt}")
-    pl_sd = torch.load(ckpt, map_location="cuda:0")
+    pl_sd = torch.load(ckpt, map_location="cuda:1")
     sd = pl_sd["state_dict"]
     model = instantiate_from_config(config.model)
     m, u = model.load_state_dict(sd, strict=False)
@@ -125,11 +123,7 @@ def make_nsfw_placeholder(height, width):
 def run(model, clip_model, preprocess, safety_model, opt):
     torch.cuda.empty_cache()
     gc.collect()
-    if opt.plms:
-        opt.ddim_eta = 0
-        sampler = PLMSSampler(model)
-    else:
-        sampler = DDIMSampler(model)
+
 
     decoded_prompts = [
         bytes(tensor).rstrip(b"\0").decode(errors="ignore") for tensor in opt.prompts
@@ -219,12 +213,8 @@ class DiffusionModule(nn.Module):
         )
         logger.info("Loaded safety model and CLIP")
 
-        config = OmegaConf.load(
-            "/home/patron/stable-diffusion/configs/stable-diffusion/v1-inference.yaml"
-        )
-        self._model = load_model_from_config(
-            config, f"/home/patron/sd-v1-3-full-ema.ckpt"
-        )
+
+        self._model = torch.load("sd_model.pt")
         self._model = self._model.cuda()
         logger.info("Loaded diffusion model")
 
@@ -241,16 +231,12 @@ class DiffusionModule(nn.Module):
             plms=True,
             nsfw_threshold=0.5,
         )
-        output_images, nsfw_scores = run(
-            self._model,
-            self._clip_model,
-            self._clip_preprocess,
-            self._safety_model,
-            args,
-        )
+
+        output_images = run_stable_diffusion(self._model, prompts[0], batch_size=len(prompts))
+
 
         encoded_images = []
-        for image in output_images.numpy():
+        for image in output_images:
             image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)  # imencode() operates in BGR
             retval, buf = cv2.imencode(
                 ".webp", image, [cv2.IMWRITE_WEBP_QUALITY, WEBP_QUALITY]
@@ -270,4 +256,4 @@ class DiffusionModule(nn.Module):
         assert (
             encoded_images.dtype == torch.uint8
         )  # note: output dtype is important since it affects bandwidth usage!
-        return encoded_images, nsfw_scores
+        return encoded_images#
