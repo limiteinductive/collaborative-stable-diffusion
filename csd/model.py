@@ -45,7 +45,7 @@ def apply_censorship(
     model: open_clip.model.CLIP,
     image: Image.Image,
     nsfw_config_path: str = "nsfw.toml",
-    blur_radius: int = 10,
+    blur_radius: int = 20,
 ):
     return (
         image.filter(GaussianBlur(blur_radius))

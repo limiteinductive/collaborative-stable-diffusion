@@ -14,7 +14,7 @@ def load_clip(
 ) -> open_clip.model.CLIP:
     model, _, preprocess = open_clip.create_model_and_transforms(
         "ViT-L-14",
-        pretrained="laion400m_e32",
+        pretrained="openai",
         precision="fp16",
         device=torch.device(device),
     )
@@ -47,11 +47,7 @@ def compute_clip_similarity(
     tokens_features = model.encode_text(open_clip.tokenize(tokens).to(device))
     normalize = lambda x: x / x.norm(dim=1, keepdim=True)
 
-    scores = (
-        (100.0 * normalize(features) @ normalize(tokens_features).T)
-        .softmax(dim=1)
-        .tolist()[0]
-    )
+    scores = (normalize(features) @ normalize(tokens_features).T).tolist()[0]
 
     return {token: score for token, score in zip(tokens, scores)}
 
@@ -66,7 +62,6 @@ def compute_nsfw_scores(
     model: open_clip.model.CLIP,
     features: torch.Tensor,
     nsfw_config_path="nsfw.toml",
-    adjustment: float = 0.05,
 ) -> NSFWScores:
     with open(nsfw_config_path, "rb") as f:
         scores = tomli.load(f)["scores"]
@@ -78,24 +73,22 @@ def compute_nsfw_scores(
         model, features, list(scores["special"].keys())
     )
 
-    compute_scores = lambda score, similarities: {
+    compute_scores = lambda score, similarities, adjustment: {
         token: round(sim - score[token] + adjustment, 3)
         for token, sim in similarities.items()
     }
 
     return NSFWScores(
-        concept=compute_scores(scores["concept"], concept_similarities),
-        special=compute_scores(scores["special"], special_similarities),
+        concept=compute_scores(scores["concept"], concept_similarities, 0.01),
+        special=compute_scores(scores["special"], special_similarities, 0.05),
     )
 
 
-def test_nsfw_scores(
-    scores: NSFWScores, threshold: float = 0.8, special_threshold: float = 0.6
-) -> bool:
+def test_nsfw_scores(scores: NSFWScores, threshold: float = 0.015) -> bool:
 
     exist_positive = lambda x, t: bool(list(filter(lambda y: (y - t) > 0, x.values())))
 
-    return exist_positive(scores.special, special_threshold) and exist_positive(
+    return exist_positive(scores.special, threshold) or exist_positive(
         scores.concept, threshold
     )
 
@@ -104,15 +97,12 @@ def censor_image(
     model: open_clip.model.CLIP,
     image: Image.Image,
     nsfw_config_path="nsfw.toml",
-    threshold: float = 0.8,
-    special_threshold: float = 0.6,
+    threshold=0.01,
     verbose=False,
 ) -> bool:
     features = encode_image(model, image)
     scores = compute_nsfw_scores(model, features, nsfw_config_path)
-    result = test_nsfw_scores(
-        scores, threshold=threshold, special_threshold=special_threshold
-    )
+    result = test_nsfw_scores(scores, threshold=threshold)
 
     if verbose:
         print(scores)
@@ -124,8 +114,7 @@ def censor_text(
     model: open_clip.model.CLIP,
     text: str,
     nsfw_config_path="nsfw.toml",
-    threshold: float = 0.6,
-    special_threshold: float = 0.8,
+    threshold: float = 0.02,
     verbose=False,
 ) -> bool:
     features = encode_text(model, text)
