@@ -73,8 +73,9 @@ class DiffusionModule(nn.Module):
 
     def forward(self, prompts: torch.ByteTensor):
         diffusion = load_from_plasma(self.plasma["diffusion"])
+        decoded_prompts = [bytes(tensor).rstrip(b'\0').decode(errors='ignore') for tensor in prompts]
         output_images = run_stable_diffusion(
-            diffusion, str(prompts[0]), batch_size=len(prompts)
+            diffusion, decoded_prompts[0], batch_size=len(prompts)
         )
         clean_gpu(diffusion)
 
