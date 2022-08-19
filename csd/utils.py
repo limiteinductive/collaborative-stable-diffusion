@@ -7,14 +7,14 @@ from typing import Dict, List, Tuple, TypeVar
 import ray
 import torch
 
-
 T = TypeVar("T")
 
 
 def clean_gpu(x):
     del x
-    torch.cuda.empty_cache() 
+    torch.cuda.empty_cache()
     gc.collect()
+
 
 def get_model_device(model: torch.nn.Module) -> torch.device:
     return list(model.state_dict().values())[0].device
@@ -89,7 +89,6 @@ def push_model_to_plasma(model: torch.nn.Module) -> ray.ObjectRef:
     clean_gpu(model)
 
     return ref
-
 
 
 def load_from_plasma(ref, device="cuda"):

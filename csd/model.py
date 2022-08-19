@@ -1,7 +1,8 @@
+import gc
 import io
 import os
-import gc
 
+import open_clip
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -10,10 +11,9 @@ from hivemind.utils.logging import get_logger
 from PIL import Image
 from PIL.ImageFilter import GaussianBlur
 from tsd import run_stable_diffusion
-import open_clip
 
 from csd.nsfw import censor_image, load_clip
-from csd.utils import push_model_to_plasma, load_from_plasma, clean_gpu
+from csd.utils import clean_gpu, load_from_plasma, push_model_to_plasma
 
 logger = get_logger(__name__)
 
@@ -81,7 +81,9 @@ class DiffusionModule(nn.Module):
         clip = load_from_plasma(self.plasma["clip"])
         encoded_images = list(
             map(
-                lambda image: torch.frombuffer(encode_image(apply_censorship(clip, image)), dtype=torch.uint8),
+                lambda image: torch.frombuffer(
+                    encode_image(apply_censorship(clip, image)), dtype=torch.uint8
+                ),
                 output_images,
             )
         )

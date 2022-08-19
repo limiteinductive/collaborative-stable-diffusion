@@ -13,7 +13,10 @@ def load_clip(
     device="cuda",
 ) -> open_clip.model.CLIP:
     model, _, preprocess = open_clip.create_model_and_transforms(
-        "ViT-L-14", pretrained="laion400m_e32", precision='fp16', device=torch.device(device)
+        "ViT-L-14",
+        pretrained="laion400m_e32",
+        precision="fp16",
+        device=torch.device(device),
     )
     model.preprocess = preprocess
 
