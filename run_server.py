@@ -12,7 +12,7 @@ from hivemind.utils.limits import increase_file_limit
 from hivemind.utils.logging import get_logger, use_hivemind_log_handler
 from hivemind.utils.tensor_descr import DUMMY_BATCH_SIZE, BatchTensorDescriptor
 
-from diffusion_client import MAX_NODES
+from csd.client import MAX_NODES
 
 use_hivemind_log_handler("in_root_logger")
 logger = get_logger(__name__)
@@ -35,7 +35,7 @@ def main():
                         help='server will use this many processes to handle incoming requests')
     parser.add_argument('--min_batch_size', type=int, default=1,
                         help='Minimum required batch size for all expert operations')
-    parser.add_argument('--max_batch_size', type=int, default=16,
+    parser.add_argument('--max_batch_size', type=int, default=1,
                         help='The total number of examples in the same batch will not exceed this value')
     parser.add_argument('--device', type=str, default=None, required=False,
                         help='all experts will use this device in torch notation; default: cuda if available else cpu')
@@ -54,7 +54,7 @@ def main():
     parser.add_argument('--stats_report_interval', type=int, required=False,
                         help='Interval between two reports of batch processing performance statistics')
 
-    parser.add_argument('--custom_module_path', type=str, default='model.py',
+    parser.add_argument('--custom_module_path', type=str, default='csd/model.py',
                         help='Path of a file with custom nn.modules, wrapped into special decorator')
     parser.add_argument('--identity_path', type=str, required=False, help='Path to identity file to be used in P2P')
 

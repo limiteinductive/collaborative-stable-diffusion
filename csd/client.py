@@ -1,7 +1,6 @@
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
-import cv2
 import hivemind
 import numpy as np
 import torch
@@ -14,7 +13,7 @@ from hivemind.utils import (get_logger, nested_compare, nested_flatten,
                             nested_pack)
 from torch.autograd.function import once_differentiable
 
-from load_balancer import LoadBalancer, NoModulesFound
+from .load_balancer import LoadBalancer, NoModulesFound
 
 logger = get_logger(__name__)
 
@@ -36,36 +35,6 @@ class DiffusionClient:
     ):
         dht = hivemind.DHT(initial_peers, client_mode=True, start=True, **kwargs)
         self.expert = BalancedRemoteExpert(dht=dht, uid_prefix=dht_prefix + ".")
-
-    def draw(
-        self, prompts: List[str], *, skip_decoding: bool = False
-    ) -> List[GeneratedImage]:
-        encoded_prompts = []
-        for prompt in prompts:
-            tensor = torch.tensor(list(prompt.encode()), dtype=torch.uint8)
-            tensor = F.pad(tensor, (0, MAX_PROMPT_LENGTH - len(tensor)))
-            encoded_prompts.append(tensor)
-        encoded_prompts = torch.stack(encoded_prompts)
-
-        encoded_images, nsfw_scores = self.expert(encoded_prompts)
-
-        result = []
-        for buf, nsfw_score in zip(
-            encoded_images.numpy(), nsfw_scores.detach().numpy()
-        ):
-            decoded_image = None
-            if not skip_decoding:
-                decoded_image = cv2.imdecode(buf, 1)  # imdecode() returns a BGR image
-                decoded_image = cv2.cvtColor(decoded_image, cv2.COLOR_BGR2RGB)
-
-            result.append(
-                GeneratedImage(
-                    encoded_image=buf.tobytes(),
-                    decoded_image=decoded_image,
-                    nsfw_score=nsfw_score,
-                )
-            )
-        return result
 
     @property
     def n_active_servers(self) -> int:
@@ -213,27 +182,3 @@ class _BalancedRemoteModuleCall(torch.autograd.Function):
                 )
 
         return tuple(deserialized_outputs)
-
-    @staticmethod
-    @once_differentiable
-    def backward(ctx, *grad_outputs) -> Tuple[Optional[torch.Tensor], ...]:
-        raise NotImplementedError("Backward is not yet implemented in this example")
-        # grad_outputs_cpu = tuple(tensor.cpu() for tensor in grad_outputs)
-        # inputs_and_grad_outputs = tuple(nested_flatten((ctx.saved_tensors, grad_outputs_cpu)))
-        # backward_schema = tuple(nested_flatten((ctx.info["forward_schema"], ctx.info["outputs_schema"])))
-        # serialized_tensors = [
-        #     serialize_torch_tensor(tensor, proto.compression)
-        #     for tensor, proto in zip(inputs_and_grad_outputs, backward_schema)
-        # ]
-        # while True:
-        #     try:
-        #         with ctx.expert_balancer.use_another_expert(ctx.backward_task_size) as chosen_expert:
-        #             backward_request = runtime_pb2.ExpertRequest(uid=chosen_expert.uid, tensors=serialized_tensors)
-        #             grad_inputs = chosen_expert.stub.forward(backward_request, timeout=ctx.backward_timeout)
-        #         break
-        #     except NoModulesFound:
-        #         raise
-        #     except Exception:
-        #         logger.exception(f"Tried to call backward for expert {chosen_expert} but caught:")
-        # deserialized_grad_inputs = [deserialize_torch_tensor(tensor) for tensor in grad_inputs.tensors]
-        # return (DUMMY, None, None, None, None, None, None, *deserialized_grad_inputs)

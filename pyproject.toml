@@ -4,7 +4,7 @@ version = "0.1.0"
 description = ""
 authors = [ "Ben <benjamin@selas.studio>"]
 readme = "README.md"
-dependencies = {python = "^3.7", hivemind = "^1.1.0", configargparse = "^1.5.3", opencv-python = "4.4.0.46", autokeras = "^1.0.19", open-clip-torch = "^1.3.0", einops = "^0.4.1", omegaconf = "^2.2.2", tensorflow = "^2.9.0", pytorch-lightning = "^1.7.1", clip = {git = "https://github.com/openai/CLIP.git"}, transformers = "^4.21.1", kornia = "^0.6.6", tsd = {git = "https://github.com/limiteinductive/tidy-stable-diffusion.git"}}
+dependencies = {python = "^3.7", hivemind = "^1.1.0", grpcio="1.43.0", pydantic="1.9.2", numpy="^1.23.2", protobuf="^3.20.1", msgpack="^1.0.4", open-clip-torch = "^1.3.0", tsd = {git = "https://github.com/limiteinductive/tidy-stable-diffusion.git"}, tomli = "^2.0.1", ray = "^1.13.0"}
 
 
 [build-system]
