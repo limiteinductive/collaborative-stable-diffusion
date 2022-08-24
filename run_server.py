@@ -4,8 +4,11 @@ import configargparse
 import hivemind
 from hivemind import ModuleBackend
 from hivemind.moe import Server
-from hivemind.moe.server.layers import (add_custom_models_from_file,
-                                        name_to_block, name_to_input)
+from hivemind.moe.server.layers import (
+    add_custom_models_from_file,
+    name_to_block,
+    name_to_input,
+)
 from hivemind.moe.server.server import _generate_uids
 from hivemind.proto.runtime_pb2 import CompressionType
 from hivemind.utils.limits import increase_file_limit
@@ -78,25 +81,19 @@ def main():
         start=True,
     )
     visible_maddrs_str = [str(a) for a in dht.get_visible_maddrs()]
-    logger.info(
-        f"Running DHT node on {visible_maddrs_str}, initial peers = {args.initial_peers}"
-    )
+    logger.info(f"Running DHT node on {visible_maddrs_str}, initial peers = {args.initial_peers}")
 
     num_modules = 1
     reserved_uids = []
 
     uids_to_generate = num_modules - len(reserved_uids)
     if uids_to_generate > 0:
-        logger.info(
-            f"Generating {uids_to_generate} expert uids from pattern {expert_pattern}"
-        )
+        logger.info(f"Generating {uids_to_generate} expert uids from pattern {expert_pattern}")
         reserved_uids.extend(_generate_uids(uids_to_generate, expert_pattern, dht))
 
     sample_input = name_to_input[args.module_cls](DUMMY_BATCH_SIZE)
     if isinstance(sample_input, tuple):
-        args_schema = tuple(
-            BatchTensorDescriptor.from_tensor(arg, compression) for arg in sample_input
-        )
+        args_schema = tuple(BatchTensorDescriptor.from_tensor(arg, compression) for arg in sample_input)
     else:
         args_schema = (BatchTensorDescriptor.from_tensor(sample_input, compression),)
 

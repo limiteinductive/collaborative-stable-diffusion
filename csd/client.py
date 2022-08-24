@@ -9,8 +9,7 @@ import torch.nn.functional as F
 from hivemind.compression import serialize_torch_tensor
 from hivemind.moe.client.expert import DUMMY, expert_forward
 from hivemind.moe.client.remote_expert_worker import RemoteExpertWorker
-from hivemind.utils import (get_logger, nested_compare, nested_flatten,
-                            nested_pack)
+from hivemind.utils import get_logger, nested_compare, nested_flatten, nested_pack
 from torch.autograd.function import once_differentiable
 
 from .load_balancer import LoadBalancer, NoModulesFound
@@ -30,9 +29,7 @@ class GeneratedImage:
 
 
 class DiffusionClient:
-    def __init__(
-        self, *, initial_peers: List[str], dht_prefix: str = "diffusion", **kwargs
-    ):
+    def __init__(self, *, initial_peers: List[str], dht_prefix: str = "diffusion", **kwargs):
         dht = hivemind.DHT(initial_peers, client_mode=True, start=True, **kwargs)
         self.expert = BalancedRemoteExpert(dht=dht, uid_prefix=dht_prefix + ".")
 
@@ -61,16 +58,12 @@ class BalancedRemoteExpert(nn.Module):
     ):
         super().__init__()
         if uid_prefix.endswith(".0."):
-            logger.warning(
-                f"BalancedRemoteExperts will look for experts under prefix {self.uid_prefix}0."
-            )
+            logger.warning(f"BalancedRemoteExperts will look for experts under prefix {self.uid_prefix}0.")
         assert len(grid_size) == 2 and grid_size[0] == 1, "only 1xN grids are supported"
         self.dht, self.uid_prefix, self.grid_size = dht, uid_prefix, grid_size
         self.forward_timeout, self.backward_timeout = forward_timeout, backward_timeout
         self.backward_task_size_multiplier = backward_task_size_multiplier
-        self.expert_balancer = LoadBalancer(
-            dht, key=f"{self.uid_prefix}0.", update_period=update_period, **kwargs
-        )
+        self.expert_balancer = LoadBalancer(dht, key=f"{self.uid_prefix}0.", update_period=update_period, **kwargs)
         self._expert_info = None  # expert['info'] from one of experts in the grid
 
     def forward(self, *args: torch.Tensor, **kwargs: torch.Tensor):
@@ -81,9 +74,7 @@ class BalancedRemoteExpert(nn.Module):
         :param kwargs: extra keyword tensors that will be passed to each expert, batch-first
         :returns: averaged predictions of all experts that delivered result on time, nested structure of batch-first
         """
-        assert len(kwargs) == len(
-            self.info["keyword_names"]
-        ), f"Keyword args should be {self.info['keyword_names']}"
+        assert len(kwargs) == len(self.info["keyword_names"]), f"Keyword args should be {self.info['keyword_names']}"
         kwargs = {key: kwargs[key] for key in self.info["keyword_names"]}
 
         if self._expert_info is None:
@@ -93,9 +84,7 @@ class BalancedRemoteExpert(nn.Module):
         forward_inputs = (args, kwargs)
 
         if not nested_compare(forward_inputs, self.info["forward_schema"]):
-            raise TypeError(
-                f"Inputs do not match expert input schema. Did you pass the right number of parameters?"
-            )
+            raise TypeError(f"Inputs do not match expert input schema. Did you pass the right number of parameters?")
 
         flat_inputs = list(nested_flatten(forward_inputs))
         forward_task_size = flat_inputs[0].shape[0]
@@ -123,9 +112,7 @@ class BalancedRemoteExpert(nn.Module):
             except NoModulesFound:
                 raise
             except Exception:
-                logger.exception(
-                    f"Tried to get expert info from {chosen_expert} but caught:"
-                )
+                logger.exception(f"Tried to get expert info from {chosen_expert} but caught:")
         return self._expert_info
 
 
@@ -161,9 +148,7 @@ class _BalancedRemoteModuleCall(torch.autograd.Function):
         ]
         while True:
             try:
-                with expert_balancer.use_another_expert(
-                    forward_task_size
-                ) as chosen_expert:
+                with expert_balancer.use_another_expert(forward_task_size) as chosen_expert:
                     logger.info(f"Query served by: {chosen_expert}")
                     deserialized_outputs = RemoteExpertWorker.run_coroutine(
                         expert_forward(
@@ -177,8 +162,6 @@ class _BalancedRemoteModuleCall(torch.autograd.Function):
             except NoModulesFound:
                 raise
             except Exception:
-                logger.exception(
-                    f"Tried to call forward for expert {chosen_expert} but caught:"
-                )
+                logger.exception(f"Tried to call forward for expert {chosen_expert} but caught:")
 
         return tuple(deserialized_outputs)
